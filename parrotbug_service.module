@@ -2,7 +2,7 @@
 
 /**
  * @file
- *  Provides a generic but powerful API for web services.
+ *  provide a simple proxy API for creating github issues
  */
 
 /**
@@ -20,31 +20,32 @@ function parrotbug_service_services_resources() {
       ),
       'help' => 'Creates a github issue',
       'callback' => '_parrotbug_service_create',
-      'access callback' => '_parrotbug_service_access',
+      'access callback' => 'user_access',
+      'access arguments' => array('use parrotbug api'),
       'args' => array(
         array(
           'name' => 'title',
           'type' => 'string',
-          'source' => array('param' => 'title'),
+          'source' => array('data' => 'title'),
           'optional' => FALSE,
         ),
         array(
           'name' => 'body',
           'type' => 'string',
-          'source' => array('param' => 'body'),
+          'source' => array('data' => 'body'),
           'optional' => FALSE,
         ),
         array(
           'name' => 'assignee',
           'type' => 'string',
-          'source' => array('param' => 'assignee'),
+          'source' => array('data' => 'assignee'),
           'optional' => TRUE,
           'default value' => '',
         ),
         array(
-          'name' => 'tags',
+          'name' => 'labels',
           'type' => 'array',
-          'source' => array('param' => 'tags'),
+          'source' => array('data' => 'labels'),
           'optional' => TRUE,
           'default value' => array(),
         ),
@@ -55,12 +56,144 @@ function parrotbug_service_services_resources() {
   return $resources;
 }
 
-function _parrotbug_service_create($title, $body, $assignee, $labels) {
-
+/**
+ * implementation of hook_perm()
+ */
+function parrotbug_service_perm() {
+  return array('use parrotbug api', 'administer parrotbug');
 }
 
-function _parrotbug_service_access() {
-  global $user;
-  # XXX: something better
-  return FALSE;
+/**
+ * implementation of hook_menu()
+ **/
+function parrotbug_service_menu() {
+  $items = array();
+  $items['admin/settings/parrotbug'] = array(
+    'title' => 'parrotbug settings',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('parrotbug_config_form'),
+    'access callback' => 'user_access',
+    'access arguments' => array('administer parrotbug'),
+  );
+
+  return $items;
 }
+
+
+function _parrotbug_service_create($title, $body, $assignee = '', $labels = array()) {
+
+  if (!_parrotbug_check_rate_limit()) {
+    # TODO: something more descriptive
+    watchdog('parrotbug', "rate limit exceeded");
+    return FALSE;
+  }
+
+  $issue = new StdClass;
+  $issue->title = $title; #XXX: validate
+  $issue->body  = $body; #XXX: validate
+  if ($assignee) {
+    $issue->assignee = $assignee;
+  }
+  if (!empty($labels)) {
+    $issue->labels = $labels;
+  }
+
+  $pb_user = variable_get('parrotbug_user', '');
+  $pb_password = variable_get('parrotbug_password', '');
+  $gh_repo_config = variable_get('parrotbug_repo_config', '');
+  $gh_content_type = variable_get('parrotbug_content_type', 'application/vnd.github.beta+json');
+  list($gh_user, $gh_repo) = explode('/', $gh_repo_config);
+  $gh_url = "https://$pb_user:$pb_password@api.github.com/repos/$gh_user/$gh_repo/issues";
+  $headers = array(
+    "Content-Type" => $gh_content_type,
+  );
+
+  $resp = drupal_http_request($gh_url, $headers, 'POST', json_encode($issue));
+  watchdog('parrotbug', "GitHub issue created via parrotbug");
+  return $resp;
+}
+
+function _parrotbug_check_rate_limit() {
+  $rl_data = variable_get('parrotbug_rl_data', array());
+  $user_ip = ip_address();
+  $rate_limit = variable_get('parrotbug_rate_limit', 10);
+
+  # clear out all timestamps older than 1 hour
+  foreach ($rl_data as $ip => $timestamps) {
+    foreach ($timestamps as $i => $timestamp) {
+      if ($timestamp < (time() - 60*60)) {
+        unset($rl_data[$ip][$i]);
+      }
+    }
+    if (empty($rl_data[$ip])) {
+      unset($rl_data[$ip]);
+    }
+  }
+
+  if (!isset($rl_data[$user_ip])) {
+    $rl_data[$user_ip] = array();
+  }
+ 
+  # check if this IP address has exceeded the rate limit
+  if (count($rl_data[$user_ip]) > $rate_limit) {
+    return FALSE;
+  }
+
+  # add a timestamp for this request
+  $rl_data[$user_ip][] = time();
+
+  # save the variable
+  variable_set('parrotbug_rl_data', $rl_data);
+
+  return TRUE;
+}
+
+
+function parrotbug_config_form() {
+  $form = array();
+
+  $form['parrotbug_user'] = array(
+    '#type' => 'textfield',
+    '#title' => 'parrotbug user',
+    '#description' => 'name of the user that will create issues on github',
+    '#required' => TRUE,
+    '#default_value' => variable_get('parrotbug_user', 'parrotbug'),
+  );
+
+  $form['parrotbug_password'] = array(
+    '#type' => 'textfield',
+    '#title' => 'parrotbug password',
+    '#description' => 'password for the user that will create issues on github',
+    '#required' => TRUE,
+    '#default_value' => variable_get('parrotbug_password', 'hunter2'),
+  );
+
+  $form['parrotbug_repo_config'] = array(
+    '#type' => 'textfield',
+    '#title' => 'GitHub repo',
+    '#description' => 'github repo to file issues against, e.g. parrot/parrot',
+    '#required' => TRUE,
+    '#default_value' => variable_get('parrotbug_repo_config', 'parrot/parrot'),
+  );
+
+  $form['parrotbug_content_type'] = array(
+    '#type' => 'textfield',
+    '#title' => 'GitHub content type',
+    '#description' => 'Content-Type header to use for github requests; see ' . l('GitHub\'s documentation', 'http://developer.github.com/v3/mime/'),
+    '#required' => TRUE,
+    '#default_value' => variable_get('parrotbug_content_type', 'application/vnd.github.beta+json'),
+  );
+
+  $form['parrotbug_rate_limit'] = array(
+    '#type' => 'textfield',
+    '#title' => 'max issues per hour',
+    '#description' => 'maximum number of issues per hour that may come from a single IP address',
+    '#required' => TRUE,
+    '#default_value' => variable_get('parrotbug_rate_limit', 10),
+  );
+
+  return system_settings_form($form);
+}
+
+
+
