@@ -1,0 +1,66 @@
+<?php
+
+/**
+ * @file
+ *  Provides a generic but powerful API for web services.
+ */
+
+/**
+ * implementation of hook_services_resources().
+ */
+function parrotbug_service_services_resources() {
+  $resources = array();
+
+  $resources['parrotbug'] = array(
+    'create' => array(
+      'file' => array(
+        'type' => 'module', 
+        'module' => 'parrotbug_service', 
+        'name' => 'parrotbug_service'
+      ),
+      'help' => 'Creates a github issue',
+      'callback' => '_parrotbug_service_create',
+      'access callback' => '_parrotbug_service_access',
+      'args' => array(
+        array(
+          'name' => 'title',
+          'type' => 'string',
+          'source' => array('param' => 'title'),
+          'optional' => FALSE,
+        ),
+        array(
+          'name' => 'body',
+          'type' => 'string',
+          'source' => array('param' => 'body'),
+          'optional' => FALSE,
+        ),
+        array(
+          'name' => 'assignee',
+          'type' => 'string',
+          'source' => array('param' => 'assignee'),
+          'optional' => TRUE,
+          'default value' => '',
+        ),
+        array(
+          'name' => 'tags',
+          'type' => 'array',
+          'source' => array('param' => 'tags'),
+          'optional' => TRUE,
+          'default value' => array(),
+        ),
+      ),
+    ),
+  );
+
+  return $resources;
+}
+
+function _parrotbug_service_create($title, $body, $assignee, $labels) {
+
+}
+
+function _parrotbug_service_access() {
+  global $user;
+  # XXX: something better
+  return FALSE;
+}
