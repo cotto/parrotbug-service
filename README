@@ -1,0 +1,2 @@
+This is a Drupal module, using Services and the REST Server to provide a simple
+proxy for filing GitHub issues anonymously.  There's not much to it.
