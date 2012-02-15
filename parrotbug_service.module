@@ -84,10 +84,8 @@ function _parrotbug_service_create($title, $body, $assignee = '', $labels = arra
 
   if (!_parrotbug_check_rate_limit()) {
     watchdog('parrotbug', "rate limit exceeded");
-    # TODO: return something better
-    return FALSE;
+    services_error("Rate limit exceeded.", 429);
     #TODO: add rate limit headers
-    #TODO: define some basic response formatting
   }
 
   $issue = new StdClass;
