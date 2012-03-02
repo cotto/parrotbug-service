@@ -57,10 +57,17 @@ function parrotbug_service_services_resources() {
 }
 
 /**
- * implementation of hook_perm()
+ * implementation of hook_permission()
  */
-function parrotbug_service_perm() {
-  return array('use parrotbug api', 'administer parrotbug');
+function parrotbug_service_permission() {
+  return array(
+    'use parrotbug api' => array(
+      'title' => 'Use the parrotbug service to create github issues.',
+    ),
+    'administer parrotbug' => array(
+      'title' => 'Administer parrotbug setttings.',
+    ),
+  );
 }
 
 /**
@@ -107,8 +114,13 @@ function _parrotbug_service_create($title, $body, $assignee = '', $labels = arra
   $headers = array(
     "Content-Type" => $gh_content_type,
   );
+  $options = array(
+    'method' => 'POST',
+    'data' => json_encode($issue),
+    'headers' => $headers
+  );
 
-  $resp = drupal_http_request($gh_url, $headers, 'POST', json_encode($issue));
+  $resp = drupal_http_request($gh_url, $options);
   watchdog('parrotbug', "GitHub issue created via parrotbug");
   #TODO: format the response
   #TODO: deal with errors resulting from misconfiguration:
@@ -166,8 +178,6 @@ function parrotbug_config_form() {
     '#type' => 'password',
     '#title' => 'parrotbug password',
     '#description' => 'password for the user that will create issues on github',
-    '#required' => TRUE,
-    '#default_value' => variable_get('parrotbug_password', 'hunter2'),
   );
 
   $form['parrotbug_repo_config'] = array(
