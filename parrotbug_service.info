@@ -1,6 +1,6 @@
 name = parrotbug API resource
 description = create a ticket on github by proxy
 package = Services
-core = 6.x
+core = 7.x
 php = 5.x
 dependencies[] = services

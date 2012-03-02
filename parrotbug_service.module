@@ -68,7 +68,7 @@ function parrotbug_service_perm() {
  **/
 function parrotbug_service_menu() {
   $items = array();
-  $items['admin/settings/parrotbug'] = array(
+  $items['admin/config/parrotbug'] = array(
     'title' => 'parrotbug settings',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('parrotbug_config_form'),
@@ -163,7 +163,7 @@ function parrotbug_config_form() {
   );
 
   $form['parrotbug_password'] = array(
-    '#type' => 'textfield',
+    '#type' => 'password',
     '#title' => 'parrotbug password',
     '#description' => 'password for the user that will create issues on github',
     '#required' => TRUE,
